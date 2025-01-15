@@ -1,0 +1,10 @@
+name: curve_app
+title:
+username: archewild-apps
+account: archewild-apps
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 11666476
+bundleId: 8454306
+url: https://archewild-apps.shinyapps.io/curve_app/
+version: 1
