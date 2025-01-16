@@ -15,10 +15,28 @@ rm(list = ls())
 
 # install.packages('shinycssloaders')
 # install.packages('rsconnect')
+# install.packages("glue")
+# install.packages("digest")
+# install.packages("rlang")
+# install.packages("cli")
+# install.packages("stringi")
+# install.packages("Rcpp")
+# install.packages("curl")
+# install.packages("fastmap")
+# install.packages("cachem")
+
+###install the moistureProfile package from github
+# install_github("douglasmainhart/moistureProfile", force = TRUE)
 
 ################### Loading required packages ######################
+#### these packages are for 
 library(shiny)
+library(devtools)
+library(shinycssloaders)
 library(httr)
+library(moistureProfile)
+
+
 library(readxl)
 library(tidyr)
 library(dplyr)
@@ -34,7 +52,7 @@ library(spData)
 library(zoo)
 library(EnvStats)
 library(solrad)
-library(shinycssloaders)
+
 library(psych)
 
 ######set working directory (just needed for pulling in example PRISM)
