@@ -35,8 +35,6 @@ library(devtools)
 library(shinycssloaders)
 library(httr)
 library(moistureProfile)
-
-
 library(readxl)
 library(tidyr)
 library(dplyr)
@@ -4833,7 +4831,6 @@ names(species.ov.psi.weekly)[3:4] <- c('log_geomm_min', 'log_geomm_max')
 ###################### Shiny App formatting ####################################
 
 
-
 # Define UI for dataset viewer app 
 ui <- fluidPage(
     
@@ -4882,10 +4879,15 @@ ui <- fluidPage(
                       choices = c('evergreen forest', 'deciduous forest','mixed forest','shrub','herbaceous'),
                       selected = "herbaceous"),
           
-          numericInput(inputId = "cfa",
-                       label = "Contribution flow distance",
-                       value = 0),
-          helpText("Approximate distance uphill of the location of interest"),
+          ###cfa is automated now
+          # numericInput(inputId = "cfa",
+          #              label = "Contribution flow distance",
+          #              value = 0),
+          # helpText("Approximate distance uphill of the location of interest"),
+          
+          ##Now they must input their PRISM csv file (no longer holding repository for it)
+          fileInput("prismfile", "Upload PRISM CSV"),
+          
           
           # h1("Adjusted Water table depth"),
           # numericInput(inputId = "wtdepmod",
@@ -4926,7 +4928,7 @@ ui <- fluidPage(
     
    
     ),
-    tabPanel("Advanced Inputs",
+    tabPanel("Advanced Soil Inputs",
              
              
              
@@ -4958,7 +4960,28 @@ ui <- fluidPage(
                column(4, numericInput(inputId = "depth.mod",label = "Topsoil Depth (cm)", value = NA))
              )
              
+             
+             ),
+    tabPanel("Hydrology Inputs",
+             
+            ##breif title 
+            fluidRow(
+              column(12,h2("Use this page to describe hydrology influencing you zone"),
+              h3("Choose one type and enter data.")),
+            ),
+            fluidRow(
+              column(12, h3("For Man-made ponds and Drainage Basins")),
+              column(2,checkboxInput("manmadePond", "Select Man-made pond")),
+              column(3,numericInput(inputId = "surfacewidth", label = "Surface Width (m)", value = NA)),
+              column(3,numericInput(inputId = "surfacelen", label = "Surface Length (m)", value = NA)),
+              column(3, numericInput(inputId = "pbankslope", label = "Slope of pond bank (degrees)", value = NA)),
+              column(3, numericInput(inputId = "maxpdepth", label = "Max pond depth (m)", value = NA), helpText("From bottom to point of overflow")),
+              column(4, numericInput(inputId = "posrelfill", label = "Zone Relative Position to Full depth (cm)", value = NA), helpText("Relative distance to max depth of pond.")),
+              column(2, checkboxInput(inputId = "inputspres", label = "Drainage Inputs Present?")),
+              column(2, numericInput("uphillarea", "Total Uphill Drainage Area (acres)", value = NA))
+            ),
             
+             
              
              
              
@@ -4977,6 +5000,18 @@ ui <- fluidPage(
 server <- function(input, output) {
     
     
+  ###for updating ui in the hydrology tab
+  observeEvent(input$hydrotype, {
+    updateTabsetPanel(inputId = "params", selected = input$hydrotype)
+  })
+  
+  # hydro.table <- reactive({
+  #   switch(input$hydrotype,
+  #          )
+  #   
+  # })
+  
+  
   # ###############################set the values for the input variables 
   # ####enter zone name that we want to look at
   zone.name <- reactive({input$zone.name})
