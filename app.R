@@ -191,24 +191,65 @@ ui <- fluidPage(
              
              ),
              fluidRow(
-               h3("   Input modification to the upper soil layer (top50)")
+               column(12,
+                      h3("Input modification to the upper soil layer (top50)"))
              ),
              
              ###rows for modification (upper soil)
              fluidRow(
-               column(2, numericInput(inputId = "sand.mod",label = "Sand (%)", value = NA)),
-               column(2, numericInput(inputId = "silt.mod",label = "Silt (%)", value = NA)),
-               column(2, numericInput(inputId = "clay.mod",label = "Clay (%)", value = NA)),
-               column(2, numericInput(inputId = "om.mod",label = "OM (%)", value = NA)),
-               column(2, numericInput(inputId = "frag.mod",label = "Frag Volume (%)", value = NA)),
-               column(2, numericInput(inputId = "bd.mod",label = "Bulk Density (g/cm^3)", value = NA)),
+               column(2, selectInput(inputId = "upper.soil.mod", label = "Soil Texture",
+                                     choices = c("clay", "clay loam", "loam", "loamy sand", "sand", "sandy clay", "sandy clay loam", "sandy loam", "silt",
+                                                 "silty clay", "silty clay loam", "silt loam", "organic","none"),
+                                     selected = "none")),
+               column(2, numericInput(inputId = "upper.om.mod",label = "OM (%)", value = NA)),
+               column(2, numericInput(inputId = "upper.frag.mod",label = "Frag Volume (%)", value = NA)),
+               column(2, numericInput(inputId = "upper.bd.mod",label = "Bulk Density (g/cm^3)", value = NA)),
+               column(2, numericInput(inputId = "upper.ksat.mod", label = "Ksat (mm/hr)",value = NA))
              ),
              
              ##row for water table depth modfication
              fluidRow(
                column(4, numericInput(inputId = "wt.mod",label = "Min annual Water Table Depth (cm)", value = NA)),
-               column(4, numericInput(inputId = "depth.mod",label = "Topsoil Depth (cm)", value = NA))
+               column(4, numericInput(inputId = "upper.depth.mod",label = "Topsoil Depth (cm)", value = NA))
+             ),
+             
+             fluidRow(
+               column(12,
+                      h2("For Modifiying Entire Soil profile"),
+                      helpText("Only modify the lower and bedrock soil profile data if soil observed in the field is utterly different
+                               from what is on SSURGO table above. If so data needs to be entered for all values for each layer."),
+                      checkboxInput(inputId = "full_soil_mod", label = "Modify entire soil profile"))
+             ),
+             
+             
+             fluidRow(
+               column(12,
+                      h3("Modifications to sub-soil (>50cm depth)"))
+             ),
+             
+             ###rows for modification (lower soil profile)
+             fluidRow(
+               column(2, selectInput(inputId = "lower.soil.mod", label = "Soil Texture",
+                                     choices = c("clay", "clay loam", "loam", "loamy sand", "sand", "sandy clay", "sandy clay loam", "sandy loam", "silt",
+                                                 "silty clay", "silty clay loam", "silt loam", "organic","none"),
+                                     selected = "none")),
+               column(2, numericInput(inputId = "lower.om.mod",label = "OM (%)", value = NA)),
+               column(2, numericInput(inputId = "lower.frag.mod",label = "Frag Volume (%)", value = NA)),
+               column(2, numericInput(inputId = "lower.bd.mod",label = "Bulk Density (g/cm^3)", value = NA)),
+               column(2, numericInput(inputId = "lower.ksat.mod", label = "Ksat (mm/hr)",value = NA))
+             ),
+             
+             
+             fluidRow(
+               column(12,
+                      h3("Modifications to Bedrock Layer"))
+             ),
+             
+             ###rows for modification (lower soil profile)
+             fluidRow(
+               column(2, numericInput(inputId = "bed.ksat.mod", label = "Ksat (mm/hr)", value = NA))
              )
+             
              
              
              ),
@@ -777,7 +818,7 @@ server <- function(input, output) {
   output$soil.profile <- renderTable({
     ###validate
     validate(
-      need(input$lat, "Please input site in first tab before modifying soil profile")
+      need(input$lat, "Input cite location to view current SSURGO data")
     )
     
     ####soil.table.display for the second tab
