@@ -24,14 +24,14 @@ rm(list = ls())
 # install.packages("curl")
 # install.packages("fastmap")
 # install.packages("cachem")
-
+library(devtools)
 ###install the moistureProfile package from github
 # install_github("douglasmainhart/moistureProfile", force = TRUE)
 
 ################### Loading required packages ######################
 #### these packages are for 
 library(shiny)
-library(devtools)
+
 library(shinycssloaders)
 library(httr)
 library(moistureProfile)
@@ -100,20 +100,20 @@ ui <- fluidPage(
                     # Input: Numeric entry for number of obs to view 
           numericInput(inputId = "lat",
                        label = "Latitude:",
-                       value = NA),
+                       value = 40.130267),
           
           
           numericInput(inputId = "long",
                        label = "Longitude:",
-                       value = NA),
+                       value = -75.151671),
           
           numericInput(inputId = 'slope.deg',
                        label = "Slope (degrees)",
-                       value = NA),
+                       value = 10),
         
           numericInput(inputId = "cc",
                        label = "Canopy Cover",
-                       value = NA),
+                       value = 40),
           
           h4("Leaf out?"),
           checkboxInput("leafon", label = "Leaf on", value = T),
@@ -127,9 +127,9 @@ ui <- fluidPage(
           
           selectInput(inputId = "veg.form", label = "Vegetation Type",
                       choices = c('evergreen forest', 'deciduous forest','mixed forest','shrub','herbaceous'),
-                      selected = "herbaceous"),
+                      selected = "deciduous forest"),
           numericInput(inputId = "veg.ht", label = "Vegetation Height (m)",
-                       value = NA),
+                       value = 40),
           
           ###cfa is automated now
           # numericInput(inputId = "cfa",
@@ -388,7 +388,8 @@ server <- function(input, output) {
     })
   
   
-  ###profile fit block takes into acount variable modifications
+  ###formats the downloaded SSURGO data from above soil.retrieved.block() and formats it for feeding into vg.profile.fit in
+  # the profile.full.block () reactive expression
   soil.layers.block <- reactive({
     
     soil.retrieved <- soil.retrieved.block()
@@ -397,66 +398,7 @@ server <- function(input, output) {
     soil.profile <- profile.creator(soil.retr = soil.retrieved, input.data = target.data())
     
     
-    # ###now classify the horizons (classifies O and R) layers where present and defines which horizons are topsoil and which are not.
-    # soil.classified <- classify.horizons(soil.retrieved)
-    # 
-    # 
-    # ###use vg fit function to fit the parameters to each horizon
-    # soil.horizons <- vg.fit(soil.classified)
-    # 
-    # 
-    # #####if soil textural class modification is present, grab the sand, silt, clay values
-    # if (!is.na(text.mod)) {
-    #   
-    #   ####match the texture mod to the nrcs parameters table
-    #   texture.subset <- nrcs.parameters%>%
-    #     subset(classes_results == text.mod)
-    #   
-    #   ###assign modification values 
-    #   sand.mod <- texture.subset$sand[1]
-    #   silt.mod <- texture.subset$silt[1]
-    #   clay.mod <- texture.subset$clay[1]
-    #   
-    #   ###ksat mod needs to be manually added
-    #   
-    #   
-    # } else {
-    #   
-    #   ###IF NO texture mod then make them NA
-    #   sand.mod <- NA
-    #   silt.mod <- NA
-    #   clay.mod <- NA
-    #   
-    # }
-    # 
-    # 
-    # 
-    # ##create hz data table for the upper 50, should be plugging in the soil.horizons
-    # text.upper50 <- soil_texture50(soil.horizons)%>%
-    #   mutate(wt_frag = ifelse(!is.na(input$frag.mod), input$frag.mod, wt_frag),
-    #          wt_om = ifelse(!is.na(input$om.mod), input$om.mod, wt_om),
-    #          wt_bd_gcm3 = ifelse(!is.na(input$bd.mod), input$bd.mod, wt_bd_gcm3),
-    #          hzdepb_r = ifelse(!is.na(input$depth.mod), input$depth.mod, hzdepb_r),
-    #          wt_ksat_mmhr = ifelse(!is.na(input$ksat.mod), input$ksat.mod, wt_ksat_mmhr))
-    # 
-    # ##modify the text.upper50 if all modifications are present and add up to 100
-    # if (all(!is.na(c(input$sand.mod, input$silt.mod, input$clay.mod))) & (input$sand.mod + input$silt.mod + input$clay.mod == 100)) {
-    #   ##change texture of upper soil horizon
-    #   text.upper50$wt_sand[1] <- input$sand.mod
-    #   text.upper50$wt_silt[1] <- input$silt.mod
-    #   text.upper50$wt_clay[1] <- input$clay.mod
-    # }
-    # 
-    # 
-    # #create hz data table for lower soils
-    # text.deepsoil <- soil_texturedeep(soil.horizons)
-    # 
-    # ##get the bedrock data only returns the ksat but we can still use this
-    # br.horizon <- get.bedrock(soil.horizons)
-    # 
-    # ####get soil.profile with get.profile function that modifies if bedrock is missing to give proper 3rd drainage layers
-    # soil.profile <- get.profile(text.upper50, text.deepsoil, br.horizon)%>%
-    #   mutate(wtdepannmin = ifelse(!is.na(input$wt.mod), input$wt.mod, wtdepannmin))
+    
     
     
     soil.profile.set <- soil.profile
@@ -480,16 +422,23 @@ server <- function(input, output) {
   #### canopy cover block
   ####use cc calculator and ph retriever
   cc.table.block <-  reactive({
-    cc.calculator(ccinput = cc(), leaf_on = leafon(), veg_form = veg.form())
+    cc.calculator(ccinput = input$cc, leaf_on = input$leafon, veg_form = input$veg.form)
     
   })
   
   ####takes the fit soil profile and prism data and outputs the 
   profile.full.block <- reactive({
     
+    
+    validate(
+      need(input$prismfile, "Please input site data")
+    )
+    
+    
+    
     ###try setting values so we don't have to reactive them later
-    slope.deg <- target.data$slope_degrees[1]
-    aspect <- target.data$aspect[1]
+    slope.deg <- input$slope.deg
+    aspect <- input$aspect
     point.cfa <- target.data$cfa[1]
     
     ###not an entered value (calculated to assist with seepage calculations)
@@ -526,12 +475,14 @@ server <- function(input, output) {
     ################### assign canopy parameters for PENMAN evaporation and GASH interception equations
     
     ##make table for intereption parameters
+    ##need to add canopy cover for adjusting some roughness length parameters
     int.param.table <- gash.params%>%
-      subset(veg_form == veg.form())%>%
-      mutate(canopy_cover = cc())
+      subset(veg_form == input$veg.form)%>%
+      mutate(canopy_cover = input$cc)
     
     ###get the parameters for the rs calculations
-    veg_parameters <- veg.match(int.params = int.param.table)
+    veg_parameters <- veg.match(int.params = int.param.table)%>%
+      mutate(canopy_ht_m = ifelse(!is.na(input$veg.ht),input$veg.ht, canopy_ht_m ))
     
     ###calculate ra here since it is a static parameter (5/28/2024)
     ra.calc <- ra(veg_height = veg_parameters$canopy_ht_m[1], dcoeff = veg_parameters$d_coef[1])
@@ -542,8 +493,12 @@ server <- function(input, output) {
     
     
     
-    ################## Soil Retreival and parameter calculations
-    soil.layers <- soil.layers.block()
+    ################## Pull in the soil table data
+    # soil.layers <- soil.layers.block()
+    
+    ##get the ph
+    # ph_50cm <- ifelse(is.na(input$ph.mod),wgt.pH.50(soil.table = soil.layers.block()),target.data()$ph_mod[1]) 
+
   
     
     
@@ -551,7 +506,7 @@ server <- function(input, output) {
     ##the paw values are me testing to see if the way i'm calculating it matches the USDA
     ##updated to have field capacity stuff (4/23/2024)
     profile.fit <- vg.profile.fit(soil_profile = soil.layers())%>%
-      mutate(cfa_m2 = point.cfa)%>%
+      mutate(cfa_m2 = point.cfa())%>%
       mutate(hz_depth = hzdepb_r - hzdept_r)%>%
       mutate(tot_adj_ws_cm = adj_theta_s*hz_depth,
              min_adj_ws_cm = adj_theta_r*hz_depth)%>%
@@ -636,12 +591,12 @@ server <- function(input, output) {
              adj_prate_cmhr = ifelse(precip_mm > 0, round(((adj_precip_mm/10)/rain_dur_hrs), digits = 2), 0))%>% ##need adjusted rainfall rate for infiltration and runoff
       mutate(ground_evap_mmday = ifelse(ground_evap_mmday < 0, 0, ground_evap_mmday),
              pond_evap_mmday = ifelse(pond_evap_mmday < 0 , 0, pond_evap_mmday))%>%
-      mutate(date = as.Date(date, format = "%Y-%m-%d"),
-             daylag = lag(date, default = first(date)-1))%>%
-      group_by(grp = cumsum(precip_cm > 0))%>%
-      mutate(last_rain = as.numeric(date - daylag[1]))%>%
-      ungroup()%>%
-      mutate(slope = slope.deg, cfa_m2 = point.cfa)
+      # mutate(date = as.Date(date, format = "%Y-%m-%d"),
+      #        daylag = lag(date, default = first(date)-1))%>%
+      # group_by(grp = cumsum(precip_cm > 0))%>%
+      # mutate(last_rain = as.numeric(date - daylag[1]))%>%
+      # ungroup()%>%
+      mutate(slope = slope.deg(), cfa_m2 = point.cfa())
     
     
     ###################### Create a Progress object and function needed for the progress bar to be set
