@@ -11,7 +11,7 @@
 # https://shiny.rstudio.com/articles/reactivity-overview.html
 # https://www.rdocumentation.org/packages/shiny/versions/1.7.4
 
-rm(list = ls())
+# rm(list = ls())
 
 # install.packages('shinycssloaders')
 # install.packages('rsconnect')
@@ -24,7 +24,7 @@ rm(list = ls())
 # install.packages("curl")
 # install.packages("fastmap")
 # install.packages("cachem")
-library(devtools)
+# library(devtools)
 ###install the moistureProfile package from github
 # install_github("douglasmainhart/moistureProfile", force = TRUE)
 
@@ -60,6 +60,10 @@ library(psych)
 ##working directory for Mark's gaming laptop
 # setwd("C:/Users/markw/OneDrive - archewild.com/Documents - ArcheWild Research/Projects/Soil Water Light/moisture_profile_code_8-25-2023")
 
+###issues
+# options(shiny.reactlog=TRUE)
+# shiny::runApp(display.mode="showcase")
+
 
 
 ########################## load required PRISM and species slice and overall tables ######################################
@@ -68,15 +72,15 @@ library(psych)
 ##no longer needed having the user provide the PRISM data from now on
 # prism.locations <- read.csv("./prism_locations.csv")
 
-###bring in all species cc and ph values
-spec.ph.cc.all <- read.csv("spec_ph_cc_data.csv")
-
-##bring in species slices and weekly long form curve values, these values need to be updated and added to the folder
-species.slice.data <- read.csv("./all_spp_sliced_data.csv")
-
-species.ov.psi.weekly <- read.csv("./species_ov_psi_weekly.csv")%>%
-  select(species, week_num,spec_min_log_geomm_min_psi, spec_max_log_goemm_max_psi)
-names(species.ov.psi.weekly)[3:4] <- c('log_geomm_min', 'log_geomm_max')
+###bring in all species cc and ph values (not needed now under the moistureProfile package data imports)
+# spec.ph.cc.all <- read.csv("spec_ph_cc_data.csv")
+# 
+# ##bring in species slices and weekly long form curve values, these values need to be updated and added to the folder
+# species.slice.data <- read.csv("./all_spp_sliced_data.csv")
+# 
+# species.ov.psi.weekly <- read.csv("./species_ov_psi_weekly.csv")%>%
+#   select(species, week_num,spec_min_log_geomm_min_psi, spec_max_log_goemm_max_psi)
+# names(species.ov.psi.weekly)[3:4] <- c('log_geomm_min', 'log_geomm_max')
 
 ###################### Shiny App formatting ####################################
 
@@ -100,20 +104,20 @@ ui <- fluidPage(
                     # Input: Numeric entry for number of obs to view 
           numericInput(inputId = "lat",
                        label = "Latitude:",
-                       value = 40.130267),
+                       value = NA),
           
           
           numericInput(inputId = "long",
                        label = "Longitude:",
-                       value = -75.151671),
+                       value = NA),
           
           numericInput(inputId = 'slope.deg',
                        label = "Slope (degrees)",
-                       value = 10),
+                       value = NA),
         
           numericInput(inputId = "cc",
                        label = "Canopy Cover",
-                       value = 40),
+                       value = NA),
           
           h4("Leaf out?"),
           checkboxInput("leafon", label = "Leaf on", value = T),
@@ -129,7 +133,7 @@ ui <- fluidPage(
                       choices = c('evergreen forest', 'deciduous forest','mixed forest','shrub','herbaceous'),
                       selected = "deciduous forest"),
           numericInput(inputId = "veg.ht", label = "Vegetation Height (m)",
-                       value = 40),
+                       value = NA),
           
           ###cfa is automated now
           # numericInput(inputId = "cfa",
@@ -297,64 +301,99 @@ ui <- fluidPage(
 # Define server logic to summarize and view selected dataset  
 ##input is an object that contains all the above inputs that the user put in
 server <- function(input, output) {
+  
     
     
+  ####get all inputs into separate input reactives so we can make tables and do whatever without issues
+  zone_name <- reactive({input$zone.name})
+  lat <- reactive({input$lat})
+  long <- reactive({input$long})
+  
+  cc <- reactive({input$cc})
+  leafon <- reactive({input$leafon})
+  
+  ####### slope (degrees)
+  slope.deg <- reactive({ifelse(input$slope.deg <= 0, 5, input$slope.deg)})
+  
+  ###aspect
+  aspect <- reactive({ifelse(input$aspect == "NONE", "S", input$aspect)})
+  
+  ####### Vegetation formation
+  veg.form <- reactive({input$veg.form})
+  
+  veg.ht <- reactive({ifelse(!is.na(input$veg.ht), input$vb.ht, NA)})
+  
+  
+  ####### calculate flow contribution area
+  point.cfa <- reactive({
+    
+    #####cfa. calculations (now automated)
+    hydro.tab <- get.cfa(lat(),long())
+    
+    point.cfa <- hydro.tab$cfa[1]
+  }
+  )
+  
+ 
   
   
   
-  # ###############################set the values for the input variables 
+  
+  #### create a table with all inputs and only ever refer to inputs from this table in all other areas of code
   ##put all of these into a table so they are organized
   target.data <- reactive({
     
-    #####cfa. calculations (now automated)
-    hydro.tab <- reactive({get.cfa(input$lat,input$long)})
+   
     
     ####add all inputs to the table
-    table1 <- data.frame(
-      zone_name = c(input$zone.name),
-      lat = c(input$lat),
-      long = c(input$long),
-      canopy_cover_perc = c(input$cc),
-      leafon = c(input$leafon),
-      slope_degrees = c(input$slope.deg),
-      aspect = c(ifelse(input$aspect == "NONE", "S", input$aspect)),
-      veg_form = c(input$veg.form),
-      vegetation_height_meters = c(input$veg.ht),
-      cfa = c(hydro.tab$cfa[1]),
-      wt_mod = c(input$wt.mod),
-      pH_mod = c(input$ph.mod),
+    input.table <- data.frame(
+      zone_name = c(zone_name()),
+      lat = c(lat()),
+      long = c(long()),
+      canopy_cover_perc = c(cc()),
+      leafon = c(leafon()),
+      slope_degrees = c(slope.deg()),
+      aspect = c(aspect()),
+      veg_form = c(veg.form()),
+      cfa = c(point.cfa()),
+      ######### Non-required inputs
       
-      ##upper soil profile modifications
-      upper_depthmod = c(input$upper.depth.mod),
-      upper_textmod = c(input$upper.text.mod),
-      upper_fragmod = c(input$upper.frag.mod),
-      upper_ommod = c(input$upper.om.mod),
-      upper_bdmod = c(input$upper.bd.mod),
-      upper_ksat_mod = c(input$upper.ksat.mod),
+      vegetation_height_meters = c(veg.ht()),
+      # cfa = c(point.cfa()),
+      wt_mod = c(ifelse(!is.na(input$wt.mod), input$wt.mod, NA)),
+      pH_mod = c(ifelse(!is.na(input$ph.mod),  input$ph.mod, NA)) ,
+      
+      # ##upper soil profile modifications
+      upper_depthmod = c(ifelse(!is.na(input$upper.depth.mod),input$upper.depth.mod, NA )),
+      upper_textmod = c(ifelse(input$upper.text.mod == "none", NA, input$upper.text.mod)),
+      upper_fragmod = c(ifelse(!is.na(input$upper.frag.mod), input$upper.frag.mod, NA)),
+      upper_ommod = c(ifelse(!is.na(input$upper.om.mod),input$upper.om.mod,NA )),
+      upper_bdmod = c(ifelse(!is.na(input$upper.bd.mod),input$upper.bd.mod, NA)),
+      upper_ksat_mod = c(ifelse(!is.na(input$upper.ksat.mod), input$upper.ksat.mod,NA )),
       
       ###full soil modification indicator
       full_soil_mod = c(input$full_soil_mod),
-      
+
       ###subsoil stuff
-      subsoil_depthmod = c(input$lower.depth.mod),
-      subsoil_textmod = c(input$subsoil.text.mod),
-      subsoil_fragmod = c(input$lower.frag.mod),
-      subsoil_ommod = c(input$lower.om.mod),
-      subsoil_bdmod = c(input$lower.bd.mod),
-      subsoil_ksat_mod = c(input$lower.ksat.mod),
+      subsoil_depthmod = c(ifelse(!is.na(input$subsoil.depth.mod), input$subsoil.depth.mod, NA)),
+      subsoil_textmod = c(ifelse(input$subsoil.text.mod == "none", NA, input$subsoil.text.mod)),
+      subsoil_fragmod = c(ifelse(!is.na(input$subsoil.frag.mod), input$subsoil.frag.mod, NA)),
+      subsoil_ommod = c(ifelse(!is.na(input$subsoil.om.mod), input$subsoil.om.mod,NA)),
+      subsoil_bdmod = c(ifelse(!is.na(input$subsoil.bd.mod), input$subsoil.bd.mod, NA)),
+      subsoil_ksat_mod = c(ifelse(!is.na(input$subsoil.ksat.mod), input$subsoil.ksat.mod,NA)),
       
       ###bedrock modifications
-      bedrock_ksat_mod = c(input$bedrock.ksat.mod),
-      dep_restr_cm = c(input$dep.restr),
+      bedrock_ksat_mod = c(ifelse(!is.na(input$bed.ksat.mod), input$bed.ksat.mod,NA)),
+      dep_restr_cm = c(ifelse(!is.na(input$dep.restr),input$dep.restr, NA)),
       
       
       #### hydrologic stuff
-      hydrologic_influence = c(input$hydro.type),
-      pbanksl_deg = c(input$pbankslope),
-      psurf_width_m = c(input$surfacewidth),
-      psurf_length_m = c(input$surfacelen),
-      ponmdep_m = c(input$maxpdepth),
-      pos_rel_fullpond_cm = c(input$posrelfill)
+      hydrologic_influence = c(ifelse(input$hydro.type == "none", NA, input$hydro.type)),
+      pbanksl_deg = c(ifelse(!is.na(input$pbankslope), input$pbankslope, NA)),
+      psurf_width_m = c(ifelse(!is.na(input$surfacewidth),input$surfacewidth,NA )),
+      psurf_length_m = c(ifelse(!is.na(input$surfacelen), input$surfacelen,NA)),
+      ponmdep_m = c(ifelse(!is.na(input$maxpdepth), input$maxpdepth,NA )),
+      pos_rel_fullpond_cm = c(ifelse(!is.na(input$posrelfill),  input$posrelfill,NA ))
       
       
     )
@@ -375,16 +414,27 @@ server <- function(input, output) {
   #####soil retrieved function
   soil.retrieved.block <- reactive({
     
+   
+    
+    input.data <- target.data()
+    
+    
+    
     ##call the retrieval function on the gps points
-    soil.retrieved <- soil.data.retriever(input$lat, input$long)
+    soil.retrieved <- soil.data.retriever(input.data$lat[1], input.data$long[1])
     
   })
   
   ####ph calculator
   soil.ph <- reactive({
   
+   
+    
+    input.data <- target.data()
+    
+    
     ###ph calculator
-    ph <- ifelse(is.na(input$ph.mod),wgt.pH.50(soil.table = soil.retrieved.block()), input$ph.mod)
+    ph <- ifelse(is.na(input.data$pH_mod[1]),wgt.pH.50(soil.table = soil.retrieved.block()), input.data$pH_mod[1])
     })
   
   
@@ -392,10 +442,14 @@ server <- function(input, output) {
   # the profile.full.block () reactive expression
   soil.layers.block <- reactive({
     
+    ##previously computed soil block of data straight from SSURGO
     soil.retrieved <- soil.retrieved.block()
     
+   
+    
     ###streamlined soil. profile creator, need to have target data table available however
-    soil.profile <- profile.creator(soil.retr = soil.retrieved, input.data = target.data())
+    ##target data is dataframe with all the inputs accounted for a present
+    soil.profile <- profile_creator(soil.retr = soil.retrieved.block(), input.data = target.data())
     
     
     
@@ -411,9 +465,12 @@ server <- function(input, output) {
   ##calculate needed pond data
   pond_table <- reactive({
     
+    ##table with input data
+    input.data <- target.data()
     
-    pond_table <- pond_setup(bank_slope_deg = target.data$pbanksl_deg[1], avg_full_depth = target.data$ponmdep_m[1], surface_width = target.data$psurf_width_m[1],
-               surface_length = target.data$psurf_length_m[1])
+    pond_table <- pond_setup(bank_slope_deg = input.data$pbanksl_deg[1], avg_full_depth = input.data$ponmdep_m[1], surface_width = input.data$psurf_width_m[1],
+               surface_length = input.data$psurf_length_m[1])
+    
     
     
   }) 
@@ -422,30 +479,43 @@ server <- function(input, output) {
   #### canopy cover block
   ####use cc calculator and ph retriever
   cc.table.block <-  reactive({
-    cc.calculator(ccinput = input$cc, leaf_on = input$leafon, veg_form = input$veg.form)
+    
+    validate(
+      need(input$cc, "Please input site data")
+    )
+    
+    input.data <- target.data()
+    
+    
+    cc.calculator(ccinput = input.data$canopy_cover_perc[1], leaf_on = input.data$leafon[1], veg_form = input.data$veg_form[1])
     
   })
   
   ####takes the fit soil profile and prism data and outputs the 
   profile.full.block <- reactive({
     
-    
     validate(
-      need(input$prismfile, "Please input site data")
+      need(input$lat, "Please input site data")
     )
+    
+    ###bring in target data table
+    target.dat2 <- target.data()
+    
+    ###bring in pondtable 
+    pond_table <- pond_table()
     
     
     
     ###try setting values so we don't have to reactive them later
-    slope.deg <- input$slope.deg
-    aspect <- input$aspect
-    point.cfa <- target.data$cfa[1]
+    slope.deg <- target.dat2$slope_degrees[1]
+    aspect <- target.dat2$aspect[1]
+    point.cfa <- point.cfa()
     
     ###not an entered value (calculated to assist with seepage calculations)
     # slope.deg <- atan(slope/100) * (180/pi)
-    seep.slope <- ifelse(slope.deg() == 0, 45, slope.deg())##modify the slope of the seepage area if the target area is flat
+    seep.slope <- ifelse(slope.deg == 0, 45, slope.deg)##modify the slope of the seepage area if the target area is flat
     seep.angle.mod <- cos((90-seep.slope)* pi/180) ##because the downhill seep is flowing at an angle wee need to modify the flow rate (ksat * cos(angle))
-    infil.angle.mod <- ifelse(slope.deg() == 0, 0, cos((90-slope.deg())* pi/180))
+    infil.angle.mod <- ifelse(slope.deg == 0, 0, cos((90-slope.deg)* pi/180))
     
 
     
@@ -477,18 +547,18 @@ server <- function(input, output) {
     ##make table for intereption parameters
     ##need to add canopy cover for adjusting some roughness length parameters
     int.param.table <- gash.params%>%
-      subset(veg_form == input$veg.form)%>%
-      mutate(canopy_cover = input$cc)
+      subset(veg_form == target.dat2$veg_form[1])%>%
+      mutate(canopy_cover = target.dat2$canopy_cover_perc[1])
     
     ###get the parameters for the rs calculations
     veg_parameters <- veg.match(int.params = int.param.table)%>%
-      mutate(canopy_ht_m = ifelse(!is.na(input$veg.ht),input$veg.ht, canopy_ht_m ))
+      mutate(canopy_ht_m = ifelse(!is.na(target.dat2$vegetation_height_meters[1]),target.dat2$vegetation_height_meters[1], canopy_ht_m ))
     
     ###calculate ra here since it is a static parameter (5/28/2024)
     ra.calc <- ra(veg_height = veg_parameters$canopy_ht_m[1], dcoeff = veg_parameters$d_coef[1])
     
     ###calculate the psychrometric constant
-    psy.const <- psychrom(elevation.m())
+    psy.const <- psychrom(elevation.m)
     
     
     
@@ -505,12 +575,12 @@ server <- function(input, output) {
     ##get vg params based on weighted soil profiles texture values
     ##the paw values are me testing to see if the way i'm calculating it matches the USDA
     ##updated to have field capacity stuff (4/23/2024)
-    profile.fit <- vg.profile.fit(soil_profile = soil.layers())%>%
-      mutate(cfa_m2 = point.cfa())%>%
+    profile.fit <- vg.profile.fit(soil_profile = soil.layers.block())%>%
+      mutate(cfa_m2 = point.cfa)%>%
       mutate(hz_depth = hzdepb_r - hzdept_r)%>%
       mutate(tot_adj_ws_cm = adj_theta_s*hz_depth,
              min_adj_ws_cm = adj_theta_r*hz_depth)%>%
-      mutate(slope_deg = slope.deg(), seep_slope = seep.slope,
+      mutate(slope_deg = slope.deg, seep_slope = seep.slope,
              seep_angle_mod = seep.angle.mod, inf_ang_mod = infil.angle.mod)%>% ##need to set slope for seepage calculations
       mutate(theta_pwp_norm = wrc.theta(h_cm = 15300, theta_r = theta_r, theta_s = theta_s, alpha = alpha_cm, n = n, m = m),
              paw_tot_norm = (theta_s - theta_pwp_norm)*hz_depth,
@@ -519,8 +589,8 @@ server <- function(input, output) {
              paw_tot_me_adj = (adj_theta_s - theta_pwp)*hz_depth,
              theta_fc = wrc.theta(h_cm = 300, theta_r = adj_theta_r, theta_s = adj_theta_s, alpha = alpha_cm, n = n, m = m),
              ws_fc = theta_fc * hz_depth)%>%
-      mutate(hydr_type = target.data$hydrologic_influence[1],pond_depth_m = target.data$ponmdep_m[1],relposfpond_cm = target.data$pos_rel_fullpond_cm[1], pbanksl_deg = target.data$pbanksl_deg[1],
-             psurf_width_m = target.data$psurf_width_m[1], psurf_length_m = target.data$psurf_length_m[1],
+      mutate(hydr_type = target.dat2$hydrologic_influence[1],pond_depth_m = target.dat2$ponmdep_m[1],relposfpond_cm = target.dat2$pos_rel_fullpond_cm[1], pbanksl_deg = target.dat2$pbanksl_deg[1],
+             psurf_width_m = target.dat2$psurf_width_m[1], psurf_length_m = target.dat2$psurf_length_m[1],
              poi_lvl_cm = (pond_depth_m*100) + relposfpond_cm, ##the distance from the bottom of the pond to where our POI (point of interest) lies
              delx_full = psurf_width_m - pond_table$bot_length_m[1], pfullvol_m3 = pond_table$pvolFull_m3[1]) ##need max delta_x to calculate delta_x at each time stamp and get a surface area
     #if the slope is zero (when target area is flat flood plain) assume the slope of the contributing flow area is 25 degrees
@@ -543,6 +613,9 @@ server <- function(input, output) {
     cc.table <- cc.table.block()
     
     
+    
+    
+    
     ######clean the prism file that the user has provided via input (this is now done with prism.cleaned() function)
     ##prism cleaning function 
     prism.cleaned <- prism.cleaning(prism.path = input$prismfile$datapath )
@@ -563,66 +636,72 @@ server <- function(input, output) {
     # prism.watertable <- well.match(latitude = lat(), longitude = long(), gen.profile = profile.fit, prism.table = prism.cleaned)
     
   
-    prism.cc <- prism.cleaned()%>%
+    prism.cc <- prism.cleaned%>%
       mutate(atm_tran = ifelse(precip_cm > 0, .25, 1))%>%
       mutate(canopy_cover = sapply(doy,cc.seasonal, cc.on = cc.table$leaf_on_perc[1], cc.off = cc.table$leaf_off_perc[1] ),
              rl = sapply(doy,cc.seasonal, cc.on = veg_parameters$rl[1], cc.off = 0),
              rs = rl/veg_parameters$peak_LAI) %>% ##have stomatal resistance increase as leaves come out
-      mutate(rad_top_atm = sapply(doy, hargreaves.rad, latitude = lat))%>%
+      mutate(rad_top_atm = sapply(doy, hargreaves.rad, latitude = target.dat2$lat[1]))%>%
       ##scaled evap is for the interception function that still uses the Hargreaves ET function
-      mutate(scaled_evap_mmhr = mapply( gash.et, rad_top_atm, t_mean = tmean_c, t_min = tmin_c, t_max = tmax_c, canopy = canopy_cover)) %>%##need to use mapply for multiple list arguments
+      mutate(scaled_evap_mmhr = mapply(gash.et, rad_top_atm, t_mean = tmean_c, t_min = tmin_c, t_max = tmax_c, canopy = target.dat2$canopy_cover_perc[1])) %>%##need to use mapply for multiple list arguments
       ####ground evap is the evap taken from the ground, need to calculate PENMAN params for each day
       # mutate(windsp_ms = 2)%>% ##windspeed is default of two since we don't have this data
-      mutate(Rn = mapply(net.radiation, doy = doy, elevation = elevation.m(), slope_deg = slope.deg, aspect = aspect, transmission = atm_tran, lat = lat, long = long, tmin = tmin_c, tmax = tmax_c, VPD = vpdmean_kpa,
-                         cc = canopy_cover,veg_form = veg_parameters$base_form[1] ))%>%
-      mutate(air_dense = mapply(air.dense, tempc = tmean_c, elev = elevation.m()))%>%
+      mutate(Rn = mapply(net.radiation, doy = doy, elevation = elevation.m, slope_deg = target.dat2$slope_degrees[1], aspect = target.dat2$aspect[1], transmission = atm_tran, lat = target.dat2$lat[1], long = target.dat2$long[1], tmin = tmin_c, tmax = tmax_c, VPD = vpdmean_kpa,
+                         cc = canopy_cover))%>%
+      mutate(air_dense = mapply(air.dense, tempc = tmean_c, elev = elevation.m))%>%
       mutate(delta = sapply(tmean_c, delta.slope))%>%
       mutate(ground_evap_mmday = mapply(penman.et, Rn = Rn, ra = ra.calc, VPD = vpdmean_kpa, psychrom =psy.const, delta = delta, air_dense = air_dense, rs = rs ),
              pond_evap_mmday = mapply(penman.et, Rn = Rn, ra = ra.calc, VPD = vpdmean_kpa, psychrom =psy.const, delta = delta, air_dense = air_dense, rs = 0 ))%>%
       mutate(rain_dur_hrs = sapply(precip_cm, rainfall_duration_hrs))%>%
       mutate(rain_rate_cmhr = round(ifelse(precip_cm > 0,precip_cm/rain_dur_hrs, 0), digits = 2),
              rain_rate_mmhr = round(ifelse(precip_mm > 0,precip_mm/rain_dur_hrs, 0), digits = 2))%>% ##get PPG and then subsequent interception values
-      mutate(Sc = canopy_cover*int.param.table$canopyS_mm[1])%>%
-      mutate(PPG = mapply(PPG, rain_rate = rain_rate_mmhr, scaled_e = scaled_evap_mmhr, Sc = Sc, formation = veg.form))%>%
-      mutate(canopy_int_mm = mapply(canopy_int, precip = precip_mm, PPG = PPG, cc = canopy_cover, rain_rate = rain_rate_mmhr, scaled_evap = scaled_evap_mmhr, formation = veg.form))%>%
+      mutate(Sc = target.dat2$canopy_cover_perc[1]*int.param.table$canopyS_mm[1])%>%
+      mutate(PPG = mapply(PPG, rain_rate = rain_rate_mmhr, scaled_e = scaled_evap_mmhr, Sc = Sc, formation = target.dat2$veg_form[1]))%>%
+      mutate(canopy_int_mm = mapply(canopy_int, precip = precip_mm, PPG = PPG, cc = target.dat2$canopy_cover_perc[1], rain_rate = rain_rate_mmhr, scaled_evap = scaled_evap_mmhr, formation = target.dat2$veg_form[1]))%>%
       mutate(trunk_int_mm = mapply(trunk_int, pt = int.param.table$pt_mm[1], precip = precip_mm, PPT = int.param.table$Pt_mm[1], St = int.param.table$trunkS_mm[1]))%>%
       mutate(total_int_mm = trunk_int_mm + canopy_int_mm)%>%
       mutate(adj_precip_mm = ifelse(is.na(precip_mm - total_int_mm),0, round(precip_mm - total_int_mm, digits = 4 )),
              adj_prate_cmhr = ifelse(precip_mm > 0, round(((adj_precip_mm/10)/rain_dur_hrs), digits = 2), 0))%>% ##need adjusted rainfall rate for infiltration and runoff
       mutate(ground_evap_mmday = ifelse(ground_evap_mmday < 0, 0, ground_evap_mmday),
              pond_evap_mmday = ifelse(pond_evap_mmday < 0 , 0, pond_evap_mmday))%>%
-      # mutate(date = as.Date(date, format = "%Y-%m-%d"),
-      #        daylag = lag(date, default = first(date)-1))%>%
-      # group_by(grp = cumsum(precip_cm > 0))%>%
-      # mutate(last_rain = as.numeric(date - daylag[1]))%>%
-      # ungroup()%>%
-      mutate(slope = slope.deg(), cfa_m2 = point.cfa())
+      mutate(date = as.Date(date, format = "%Y-%m-%d"),
+             daylag = lag(date, default = first(date)-1))%>%
+      group_by(grp = cumsum(precip_cm > 0))%>%
+      mutate(last_rain = as.numeric(date - daylag[1]))%>%
+      ungroup()%>%
+      mutate(slope = target.dat2$slope_degrees[1], cfa_m2 = target.dat2$cfa[1])
     
     
-    ###################### Create a Progress object and function needed for the progress bar to be set
-    progress <- shiny::Progress$new()
-    progress$set(message = "Simulating Soil Moisture", value = 0)
-    # Close the progress when this reactive exits (even if there's an error)
-    on.exit(progress$close())
+    ###################### Create a Progress object and function needed for the progress bar to be set #####
+    #####right now we are ignoring this because we would need to add the progress functionality to the water.balance() function itself
+    ##this would add another layer of imports required and associated issues, we would need to duplicate the function and have a updateProgress argument
     
-    # Create a callback function to update progress.
-    # Each time this is called:
-    # - If `value` is NULL, it will move the progress bar 1/5 of the remaining
-    #   distance. If non-NULL, it will set the progress to that value.
-    # - It also accepts optional detail text.
-    updateProgress <- function(value = NULL, detail = NULL) {
-      if (is.null(value)) {
-        value <- progress$getValue()
-        value <- value + (progress$getMax() - value) / length(prism.cc2$date)
-      }
-      progress$set(value = value, detail = detail)
-    }
+    # progress <- shiny::Progress$new()
+    # progress$set(message = "Simulating Soil Moisture", value = 0)
+    # # Close the progress when this reactive exits (even if there's an error)
+    # on.exit(progress$close())
+    # 
+    # # Create a callback function to update progress.
+    # # Each time this is called:
+    # # - If `value` is NULL, it will move the progress bar 1/5 of the remaining
+    # #   distance. If non-NULL, it will set the progress to that value.
+    # # - It also accepts optional detail text.
+    # updateProgress <- function(value = NULL, detail = NULL) {
+    #   if (is.null(value)) {
+    #     value <- progress$getValue()
+    #     value <- value + (progress$getMax() - value) / length(prism.cc2$date)
+    #   }
+    #   progress$set(value = value, detail = detail)
+    # }
+    # 
+    # 
+    # 
+    # ####generate the table with the soil moisture profile over the entire 20 years (or duration of user choosing depending on length of table input)
+    # profile.full <- water.balance(filled.df = prism.cc(), soil.df.input = profile.fit(), updateProgress = updateProgress)
+    #########################################################
     
     
-
-    ####generate the table with the soil moisture profile over the entire 20 years (or duration of user choosing depending on length of table input)
-    profile.full <- water.balance(filled.df = prism.cc, soil.df.input = profile.fit, updateProgress = updateProgress)
-    
+    profile.full <- water.balance(filled.df = prism.cc, soil.df = profile.fit)
     
     
     
@@ -648,92 +727,37 @@ server <- function(input, output) {
   data.summ.block <- reactive({
     
     
-    ####getting the min and max of each year-week combination for psi and vpd (seeing wierd stuff)
-    year.week.mins <- profile.full.block()%>%
-      group_by(year,week_num)%>% ## for each year-week, obtain the min and maximum psi values
-      summarize(min_psi = min(psi_top_cm), max_psi = max(psi_top_cm),
-                # min_log_psi = min(log(geo_trans_psi)), max_log_psi = max(log(geo_trans_psi))) ##testing not making it negative until after subtracting 1
-                min_log_psi = min(-log(geo_trans_psi)), max_log_psi = max(-log(geo_trans_psi))) 
+    validate(
+      need(input$lat, "Please input site data")
+    )
+    target.data <- target.data()
     
-    ###now take the geometric mean or median for each week over the entire period
-    week.max.mins <- year.week.mins%>%
-      mutate(min_geot_psi = abs(min_psi)+1, max_geot_psi = abs(max_psi)+1)%>% ##need to transform these raw psi_min and maxes so we can run geometric mean on them
-      group_by(week_num)%>%
-      summarize(mean_min_psi = mean(min_psi), sd_min_psi = sd(min_psi),
-                mean_max_psi = mean(max_psi), sd_max_psi = sd(max_psi),
-                median_min_psi = median(min_psi),
-                median_max_psi = median(max_psi),
-                geommean_min_psi = -(geometric.mean(min_geot_psi)-1),
-                geommean_max_psi = -(geometric.mean(max_geot_psi)-1), ##these are also being transformed back into raw values, need to log transform below
-                n = n())
-    
-    ####weekly temperatures and VPD values
-    ##5/23/2024: VPD values added
-    weekly.tempc <- profile.full2%>%
-      select(date, week_num, tmin_c, tmax_c, vpdmin_hpa, vpdmax_hpa)%>%
-      mutate(year = substr(date, 1,4))%>%
-      group_by(year,week_num)%>%
-      summarize(min_wkly_tminc = min(tmin_c), max_wkly_tmaxc = max(tmax_c), min_wkly_vpdmin_hpa = min(vpdmin_hpa), max_wkly_vpdmax_hpa = max(vpdmax_hpa))%>%
-      ungroup()%>%
-      group_by(week_num)%>%
-      summarize(avg_wkly_tminc = mean(min_wkly_tminc), avg_wkly_tmaxc = mean(max_wkly_tmaxc), avg_wkly_vpdmin = mean(min_wkly_vpdmin_hpa), avg_wkly_vpdmax = mean(max_wkly_vpdmax_hpa))
+    ###summarize the data
+    psi.summary <- psi.wkly.summ(profile.full.block(), loc_name = target.data$zone_name[1])
     
     
-    # plot(weekly.tempc$avg_wkly_tminc)
-    
-    #####transforming the mean min and max psi values
-    ##using median values from here on out
-    post.transf <- week.max.mins%>%
-      mutate(post_min_logpsi = -log(abs(mean_min_psi)+1), post_max_logpsi = -log(abs(mean_max_psi)+1),
-             post_med_min_transf = -log(abs(median_min_psi)+1), post_med_max_transf = -log(abs(median_max_psi)+1),
-             log_geomm_min = -log(abs(geommean_min_psi)+1),
-             log_geomm_max = -log(abs(geommean_max_psi)+1))%>%
-      mutate(offset_counts = c(1:52), period_num = offset_counts %/% 6 + 1)
-    
-    
-    ###combine weekly ppt with the post.transf to get all key climate and environmental variables
-    weekly.psi.tempc <- post.transf%>%
-      left_join(weekly.tempc, by = "week_num")
-    
-    #####transforming the mean min and max psi values
-    ##using median values from here on out
-    # post.transf <- week.max.mins%>%
-    #   mutate(post_min_logpsi = -log(abs(mean_min_psi)+1), post_max_logpsi = -log(abs(mean_max_psi)+1),
-    #          post_med_min_transf = -log(abs(median_min_psi)+1), post_med_max_transf = -log(abs(median_max_psi)+1),
-    #          log_geomm_min = -log(abs(geommean_min_psi)+1),
-    #          log_geomm_max = -log(abs(geommean_max_psi)+1))%>%
-    #   mutate(offset_counts = c(1:52), period_num = offset_counts %/% 6 + 1)
-    # 
     
   })
   
   ###slicer block, slices and formats for distance matrix comparison with species
   sliced.values <- reactive({
     
+    validate(
+      need(input$lat, "Please input site data")
+    )
+    
     ##make ccblock into a table we can get values from
     cc.table <- cc.table.block()
     
+    ####pull in the data.summ.block
     data.summ <- data.summ.block()
     
-    # sliced <- data.summ.block() %>%
-    # group_by(period_num)%>%
-    # summarize(mean_min_psi_transf_slice = mean(log_geomm_min), 
-    #           mean_max_psi_transf_slice = mean(log_geomm_max))%>%
-    # mutate(curve = zone.name())%>%
-    # mutate(pH_50cm = soil.ph(), leafon_cc = cc.table$leaf_on_perc[1], leafoff_cc = cc.table$leaf_off_perc[1])
+    ###get the slices for other variables
+    precip.summary <- precip.wkly.summ(profile.full.block()) ##replaces weekly.ppt code
+    tempvpd.summary <- temp.vpd.wkly.sum(profile.full.block()) 
     
-    
-    ####updated 5/23/2024, now includes slices for VPD
-    sliced.values <- data.summ.block() %>%
-      group_by(period_num)%>%
-      summarize(mean_min_psi_transf_slice = mean(log_geomm_min), 
-                mean_max_psi_transf_slice = mean(log_geomm_max),
-                mean_tmin_c = mean(avg_wkly_tminc),
-                mean_tmax_c = mean(avg_wkly_tmaxc),
-                mean_vpdmin_hpa = mean(avg_wkly_vpdmin),
-                mean_vpdmax_hpa = mean(avg_wkly_vpdmax))%>%
-      mutate(site = zone.name())%>%
-      mutate(pH_50cm = soil.ph(), leafon_cc = cc.table$leaf_on_perc[1], leafoff_cc = cc.table$leaf_off_perc[1]) 
+    ###evaluate the slices
+    slices <- slicer(psiWeekSum = data.summ, weekly.ppt = precip.summary, weekly.tmpvpd = tempvpd.summary)
     
    
   })
@@ -746,9 +770,11 @@ server <- function(input, output) {
       need(input$lat, "Please input site data")
     )
     
+    target.data <- target.data()
+    
     ###bring in the site data that was calculated
     site.data.formatted <- data.summ.block()%>%
-      mutate(species = zone.name())%>%
+      mutate(species = target.data$zone_name[1])%>%
       select(species,week_num, log_geomm_min, log_geomm_max)
     
     ####subset out the species of interest
@@ -765,11 +791,15 @@ server <- function(input, output) {
   #####plot the graph
   output$log_geomm_psi_minmax <- renderPlot({
     
+    validate(
+      need(input$lat, "Please input site data")
+    )
     
+    target.data <- target.data()
     
     ggplot(data = plot.data(), aes(x = week_num))+
       geom_ribbon(aes(ymin = log_geomm_min, ymax = log_geomm_max, fill = species), alpha = 0.3)+ #
-      ggtitle( paste(zone.name(),"soil moisture range (22 years)", sep = " "))+
+      ggtitle( paste(target.data$zone_name[1],"soil moisture range (22 years)", sep = " "))+
       xlab("Week (1-52)")+
       ylim(-15,0)+
       ylab("Log(Water Potential (cm of head))")
