@@ -24,8 +24,11 @@
 # install.packages("curl")
 # install.packages("fastmap")
 # install.packages("cachem")
+
+
+###########################reinstalling the package
 # library(devtools)
-###install the moistureProfile package from github
+# ###remember to makesure your personal access token is up to date
 # install_github("douglasmainhart/moistureProfile", force = TRUE)
 
 ################### Loading required packages ######################
@@ -256,7 +259,8 @@ ui <- fluidPage(
              
              ###rows for modification (lower soil profile)
              fluidRow(
-               column(2, numericInput(inputId = "bed.ksat.mod", label = "Ksat (mm/hr)", value = NA))
+               column(2, selectInput(inputId = "restr.drain.type", label = "Drainage type",
+                                     choices = c("Well-drained", "Poorly-drained", "none"),selected = "none"))
              )
              
              
@@ -347,7 +351,7 @@ server <- function(input, output) {
     
     ####add all inputs to the table
     input.table <- data.frame(
-      zone_name = c(zone_name()),
+      zone = c(zone_name()),
       lat = c(lat()),
       long = c(long()),
       canopy_cover_perc = c(cc()),
@@ -363,28 +367,29 @@ server <- function(input, output) {
       wt_mod = c(ifelse(!is.na(input$wt.mod), input$wt.mod, NA)),
       pH_mod = c(ifelse(!is.na(input$ph.mod),  input$ph.mod, NA)) ,
       
-      # ##upper soil profile modifications
-      upper_depthmod = c(ifelse(!is.na(input$upper.depth.mod),input$upper.depth.mod, NA )),
-      upper_textmod = c(ifelse(input$upper.text.mod == "none", NA, input$upper.text.mod)),
-      upper_fragmod = c(ifelse(!is.na(input$upper.frag.mod), input$upper.frag.mod, NA)),
-      upper_ommod = c(ifelse(!is.na(input$upper.om.mod),input$upper.om.mod,NA )),
-      upper_bdmod = c(ifelse(!is.na(input$upper.bd.mod),input$upper.bd.mod, NA)),
-      upper_ksat_mod = c(ifelse(!is.na(input$upper.ksat.mod), input$upper.ksat.mod,NA )),
+      ########## upper soil profile modifications (need to match columns profile_creator() recognizes)
+      depth_mod = c(ifelse(!is.na(input$upper.depth.mod),input$upper.depth.mod, NA )),
+      texture_mod = c(ifelse(input$upper.text.mod == "none", NA, input$upper.text.mod)),
+      frag_mod = c(ifelse(!is.na(input$upper.frag.mod), input$upper.frag.mod, NA)), 
+      om_mod = c(ifelse(!is.na(input$upper.om.mod),input$upper.om.mod,NA )),
+      bd_mod = c(ifelse(!is.na(input$upper.bd.mod),input$upper.bd.mod, NA)),
+      ksatmod_mmhr = c(ifelse(!is.na(input$upper.ksat.mod), input$upper.ksat.mod,NA )),
       
       ###full soil modification indicator
       full_soil_mod = c(input$full_soil_mod),
 
-      ###subsoil stuff
-      subsoil_depthmod = c(ifelse(!is.na(input$subsoil.depth.mod), input$subsoil.depth.mod, NA)),
-      subsoil_textmod = c(ifelse(input$subsoil.text.mod == "none", NA, input$subsoil.text.mod)),
-      subsoil_fragmod = c(ifelse(!is.na(input$subsoil.frag.mod), input$subsoil.frag.mod, NA)),
-      subsoil_ommod = c(ifelse(!is.na(input$subsoil.om.mod), input$subsoil.om.mod,NA)),
-      subsoil_bdmod = c(ifelse(!is.na(input$subsoil.bd.mod), input$subsoil.bd.mod, NA)),
+      #######subsoil stuff
+      hz_depth_subsoil = c(ifelse(!is.na(input$subsoil.depth.mod), input$subsoil.depth.mod, NA)),
+      text_subsoil = c(ifelse(input$subsoil.text.mod == "none", NA, input$subsoil.text.mod)),
+      frag_subsoil = c(ifelse(!is.na(input$subsoil.frag.mod), input$subsoil.frag.mod, NA)),
+      om_subsoil_mod = c(ifelse(!is.na(input$subsoil.om.mod), input$subsoil.om.mod,NA)),
+      bd_subsoil = c(ifelse(!is.na(input$subsoil.bd.mod), input$subsoil.bd.mod, NA)),
       subsoil_ksat_mod = c(ifelse(!is.na(input$subsoil.ksat.mod), input$subsoil.ksat.mod,NA)),
       
       ###bedrock modifications
-      bedrock_ksat_mod = c(ifelse(!is.na(input$bed.ksat.mod), input$bed.ksat.mod,NA)),
-      dep_restr_cm = c(ifelse(!is.na(input$dep.restr),input$dep.restr, NA)),
+      # bedrock_ksat_mod = c(ifelse(!is.na(input$bed.ksat.mod), input$bed.ksat.mod,NA)),
+      restr_drainage_type = c(ifelse(input$restr.drain.type == "none", NA, input$restr.drain.type)), ###restrive layer type
+      dep_hardpan_or_bed = c(ifelse(!is.na(input$dep.restr),input$dep.restr, NA)),
       
       
       #### hydrologic stuff
