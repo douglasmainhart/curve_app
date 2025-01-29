@@ -24,12 +24,13 @@
 # install.packages("curl")
 # install.packages("fastmap")
 # install.packages("cachem")
+# install.packages("DT")
 
 
 ###########################reinstalling the package
-# library(devtools)
-# ###remember to makesure your personal access token is up to date
-# install_github("douglasmainhart/moistureProfile", force = TRUE)
+  # library(devtools)
+  # ###remember to makesure your personal access token is up to date
+  # install_github("douglasmainhart/moistureProfile", force = TRUE)
 
 ################### Loading required packages ######################
 #### these packages are for 
@@ -53,6 +54,7 @@ library(spData)
 library(zoo)
 library(EnvStats)
 library(solrad)
+library(DT) ## for better data table viewing
 
 library(psych)
 
@@ -166,6 +168,8 @@ ui <- fluidPage(
       
       ####Moisture plot
       h1("Annual Soil Moisture"),
+      selectInput(inputId = "graph.choice", label = "Select A Graph to View",
+                  choices = c("Moisture Categories", "Species Comparison")),
       plotOutput(outputId = "log_geomm_psi_minmax")%>% withSpinner(color = "#0dc5c1"),
       
       ###selector to compare with other species 
@@ -180,8 +184,14 @@ ui <- fluidPage(
       
       h2("Species Analysis"),
       helpText("The 'perc_fit' column indicates the percent suitability of the species. Generally, values > 70% indicate a good match"),
-      tableOutput("analysis.table") %>% withSpinner(color = "#0dc5c1")
+      # tableOutput("analysis.table") %>% withSpinner(color = "#0dc5c1")
+      dataTableOutput("analysis.table")%>% withSpinner(color = "#0dc5c1"),
       
+      ########## downloads
+      h3("Download Results"),
+      downloadButton("download.slices", label = "Slices .csv"),
+      downloadButton(outputId = "download.species", label = "Species recs .csv"),
+      downloadButton(outputId = "download.chart", label = "Moisture chart .png")
       
     )
     
@@ -661,9 +671,9 @@ server <- function(input, output) {
       mutate(rain_dur_hrs = sapply(precip_cm, rainfall_duration_hrs))%>%
       mutate(rain_rate_cmhr = round(ifelse(precip_cm > 0,precip_cm/rain_dur_hrs, 0), digits = 2),
              rain_rate_mmhr = round(ifelse(precip_mm > 0,precip_mm/rain_dur_hrs, 0), digits = 2))%>% ##get PPG and then subsequent interception values
-      mutate(Sc = target.dat2$canopy_cover_perc[1]*int.param.table$canopyS_mm[1])%>%
+      mutate(Sc = canopy_cover*int.param.table$canopyS_mm[1])%>%
       mutate(PPG = mapply(PPG, rain_rate = rain_rate_mmhr, scaled_e = scaled_evap_mmhr, Sc = Sc, formation = target.dat2$veg_form[1]))%>%
-      mutate(canopy_int_mm = mapply(canopy_int, precip = precip_mm, PPG = PPG, cc = target.dat2$canopy_cover_perc[1], rain_rate = rain_rate_mmhr, scaled_evap = scaled_evap_mmhr, formation = target.dat2$veg_form[1]))%>%
+      mutate(canopy_int_mm = mapply(canopy_int, precip = precip_mm, PPG = PPG, cc = canopy_cover, rain_rate = rain_rate_mmhr, scaled_evap = scaled_evap_mmhr, formation = target.dat2$veg_form[1]))%>%
       mutate(trunk_int_mm = mapply(trunk_int, pt = int.param.table$pt_mm[1], precip = precip_mm, PPT = int.param.table$Pt_mm[1], St = int.param.table$trunkS_mm[1]))%>%
       mutate(total_int_mm = trunk_int_mm + canopy_int_mm)%>%
       mutate(adj_precip_mm = ifelse(is.na(precip_mm - total_int_mm),0, round(precip_mm - total_int_mm, digits = 4 )),
@@ -755,6 +765,8 @@ server <- function(input, output) {
     ##make ccblock into a table we can get values from
     cc.table <- cc.table.block()
     
+    
+    
     ####pull in the data.summ.block
     data.summ <- data.summ.block()
     
@@ -763,7 +775,7 @@ server <- function(input, output) {
     tempvpd.summary <- temp.vpd.wkly.sum(profile.full.block()) 
     
     ###evaluate the slices
-    slices <- slicer(psiWeekSum = data.summ, weekly.ppt = precip.summary, weekly.tmpvpd = tempvpd.summary)
+    slices <- slicer(psiWeekSum = data.summ, weekly.ppt = precip.summary, weekly.tmpvpd = tempvpd.summary,ph = soil.ph(), cctable = cc.table.block())
     
    
   })
@@ -780,12 +792,12 @@ server <- function(input, output) {
     
     ###bring in the site data that was calculated
     site.data.formatted <- data.summ.block()%>%
-      mutate(species = target.data$zone[1])%>%
-      select(species,week_num, log_geomm_min, log_geomm_max)
+      dplyr::mutate(species = target.data$zone[1])%>%
+      dplyr::select(species,week_num, log_geomm_min, log_geomm_max)
     
     ####subset out the species of interest
-    spp.subset <- species.ov.psi.weekly%>%
-      subset(species == input$spp.sel)
+    spp.subset <- spec.ov.data%>%
+      base::subset(species == input$spp.sel)
     
     ####bind them together (this is the data set fed into the plot output)
     data.compare <- rbind(site.data.formatted, spp.subset)
@@ -793,6 +805,44 @@ server <- function(input, output) {
     
   })
   
+  ####analyze species separately for download
+  spec.analysis <- reactive({
+    
+    species.analyzed <- suitability.analyzer(site.sliced = sliced.values(), species.slices = species.slice.data, species.ph.cc = spec.ph.cc.all)
+    
+    
+  })
+  
+  
+  #####general soil moisture profile graph with relative moisture classes
+  gen.moist.graph <- reactive({
+    
+    ####bring in target data
+    target.data <- target.data()
+    
+    ###psi.summary reactive
+    psi.summary <- data.summ.block()
+    
+    moisture.levels <- data.frame(week_num = rep(1:52,3),
+                                  condition = c(rep("wet", 52), rep("moist/mesic",52), rep("dry",52)),
+                                  geommean_min_psi = c(rep(-2.5,52), rep(-5,52), rep(ifelse(min(psi.summary$log_geomm_min) >= -15, -15,min(psi.summary$log_geomm_min) ),52)),
+                                  geommean_max_psi = c(rep(0,52), rep(-2.5,52), rep(-5,52)))
+    
+    ####put site in context of general soil moisture classes
+    train.graph <- ggplot()+
+        geom_ribbon(data = moisture.levels, aes(x = week_num, ymin = geommean_min_psi, ymax = geommean_max_psi, fill = condition), alpha = 0.4)+ #
+        geom_ribbon(data = psi.summary , aes(x = week_num, ymin = log_geomm_min, ymax = log_geomm_max), fill = "cadetblue2", alpha = 0.5)+
+        scale_color_manual(values = "black")+
+        # ggtitle("Raw median min and max transformed")+
+        # guides(fill=guide_legend(title="Moisture Level"))+
+        ggtitle(paste(target.data$zone[1],"Average Annual Soil Moisture", sep = " "))+
+        xlab("Week (1-52)")+
+        ylab("Water Potential (cm of head)")+
+        theme_bw()
+    
+    
+    
+  })
   
   #####plot the graph
   output$log_geomm_psi_minmax <- renderPlot({
@@ -801,14 +851,29 @@ server <- function(input, output) {
       need(input$lat, "Please input site data")
     )
     
-    target.data <- target.data()
+    if (input$graph.choice == "Moisture Categories") {
+      
+      
+      ####if they choose to see the general moisture breakdown show that graph
+      gen.moist.graph()
+      
+      
+    } else if (input$graph.choice == "Species Comparison"){ ###if they want to compare species show them the species graph
+      
+      target.data <- target.data()
+      
+      ggplot(data = plot.data(), aes(x = week_num))+
+        geom_ribbon(aes(ymin = log_geomm_min, ymax = log_geomm_max, fill = species), alpha = 0.3)+ #
+        ggtitle( paste(target.data$zone[1],"soil moisture range (22 years)", sep = " "))+
+        xlab("Week (1-52)")+
+        ylim(-15,0)+
+        ylab("Log(Water Potential (cm of head))")
+      
+      
+      
+    }
     
-    ggplot(data = plot.data(), aes(x = week_num))+
-      geom_ribbon(aes(ymin = log_geomm_min, ymax = log_geomm_max, fill = species), alpha = 0.3)+ #
-      ggtitle( paste(target.data$zone[1],"soil moisture range (22 years)", sep = " "))+
-      xlab("Week (1-52)")+
-      ylim(-15,0)+
-      ylab("Log(Water Potential (cm of head))")
+    
     
   })
   
@@ -832,6 +897,7 @@ server <- function(input, output) {
   })
   
   ###output for the advanced parameters tab
+  #renderTable
   output$soil.profile <- renderTable({
     ###validate
     validate(
@@ -848,10 +914,11 @@ server <- function(input, output) {
     
   })
   
-  
+ 
   
   ####output table of the matching species
-  output$analysis.table <- renderTable({
+  ##renderTable
+  output$analysis.table <- renderDataTable({
     
     validate(
       need(input$lat, "Please input site data")
@@ -859,10 +926,70 @@ server <- function(input, output) {
     
     
     ###compare against the other species
-    species.analyzed <- suitability.analyzer(site.sliced = sliced.values(), species.slices = species.slice.data, species.ph.cc = spec.ph.cc.all)
+    species.analyzed <- spec.analysis()
     
     
-  })
+  }, options = list(pageLength = 12))
+  
+  
+  
+  
+  ############################### DOWNLOADS #####################################
+  
+  ######download for the slices 
+  output$download.slices <- downloadHandler(
+    
+    
+    filename = function() {
+      
+      ###bring in target data
+      target.data <- target.data()
+      
+      paste(paste(target.data$zone[1],"slices", sep = "_"), ".csv", sep="")
+    },
+    
+    
+    content = function(file) {
+      write.csv(sliced.values, file)
+    }
+    ) ##download handler bracket
+  
+  ############### species recommendations table download
+  output$download.species <- downloadHandler(
+    
+    filename = function() {
+      
+      ###bring in target data
+      target.data <- target.data()
+      
+      paste(paste(target.data$zone[1],"species_recs",sep = "_"), ".csv", sep="")
+    },
+    
+    
+    content = function(file) {
+      write.csv(spec.analysis(), file)
+    }
+    
+  )
+  
+  ##### download export for the chart
+  output$download.chart <- downloadHandler(
+    
+    filename = function() {
+      ###bring in target data
+      target.data <- target.data()
+      
+      paste(paste(target.data$zone[1],"zone_moisture_plot", sep = "_"), ".png", sep="")
+    },
+    
+    
+    content = function(file) {
+      ggsave(file, plot = gen.moist.graph(),width = 6.5, height = 3.5, dpi = 600 )
+    }
+    
+    
+  )
+  
   
   
   
