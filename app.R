@@ -649,7 +649,7 @@ server <- function(input, output) {
              rs = rl/veg_parameters$peak_LAI) %>% ##have stomatal resistance increase as leaves come out
       mutate(rad_top_atm = sapply(doy, hargreaves.rad, latitude = target.dat2$lat[1]))%>%
       ##scaled evap is for the interception function that still uses the Hargreaves ET function
-      mutate(scaled_evap_mmhr = mapply(gash.et, rad_top_atm, t_mean = tmean_c, t_min = tmin_c, t_max = tmax_c, canopy = target.dat2$canopy_cover_perc[1])) %>%##need to use mapply for multiple list arguments
+      mutate(scaled_evap_mmhr = mapply(gash.et, rad_top_atm, t_mean = tmean_c, t_min = tmin_c, t_max = tmax_c, canopy = target.dat2$canopy_cover_perc[1]/100)) %>%##need to use mapply for multiple list arguments
       ####ground evap is the evap taken from the ground, need to calculate PENMAN params for each day
       # mutate(windsp_ms = 2)%>% ##windspeed is default of two since we don't have this data
       mutate(Rn = mapply(net.radiation, doy = doy, elevation = elevation.m, slope_deg = target.dat2$slope_degrees[1], aspect = target.dat2$aspect[1], transmission = atm_tran, lat = target.dat2$lat[1], long = target.dat2$long[1], tmin = tmin_c, tmax = tmax_c, VPD = vpdmean_kpa,
@@ -739,7 +739,7 @@ server <- function(input, output) {
     target.data <- target.data()
     
     ###summarize the data
-    psi.summary <- psi.wkly.summ(profile.full.block(), loc_name = target.data$zone_name[1])
+    psi.summary <- psi.wkly.summ(profile.full.block(), loc_name = target.data$zone[1])
     
     
     
@@ -780,7 +780,7 @@ server <- function(input, output) {
     
     ###bring in the site data that was calculated
     site.data.formatted <- data.summ.block()%>%
-      mutate(species = target.data$zone_name[1])%>%
+      mutate(species = target.data$zone[1])%>%
       select(species,week_num, log_geomm_min, log_geomm_max)
     
     ####subset out the species of interest
@@ -805,7 +805,7 @@ server <- function(input, output) {
     
     ggplot(data = plot.data(), aes(x = week_num))+
       geom_ribbon(aes(ymin = log_geomm_min, ymax = log_geomm_max, fill = species), alpha = 0.3)+ #
-      ggtitle( paste(target.data$zone_name[1],"soil moisture range (22 years)", sep = " "))+
+      ggtitle( paste(target.data$zone[1],"soil moisture range (22 years)", sep = " "))+
       xlab("Week (1-52)")+
       ylim(-15,0)+
       ylab("Log(Water Potential (cm of head))")
