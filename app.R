@@ -826,7 +826,7 @@ server <- function(input, output) {
     ###psi.summary reactive
     psi.summary <- data.summ.block()
     
-    browser()
+    # browser()
     
     moisture.levels <- data.frame(week_num = rep(1:52,3),
                                   condition = c(rep("wet", 52), rep("moist/mesic",52), rep("dry",52)),
@@ -956,7 +956,7 @@ server <- function(input, output) {
     
     
     content = function(file) {
-      write.csv(sliced.values, file)
+      write.csv(sliced.values(), file)
     }
     ) ##download handler bracket
   
