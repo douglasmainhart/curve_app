@@ -169,7 +169,7 @@ ui <- fluidPage(
       ####Moisture plot
       h1("Annual Soil Moisture"),
       selectInput(inputId = "graph.choice", label = "Select A Graph to View",
-                  choices = c("Moisture Categories", "Species Comparison")),
+                  choices = c("Moisture Categories", "Species Comparison"), selected = "Moisture Categories"),
       plotOutput(outputId = "log_geomm_psi_minmax")%>% withSpinner(color = "#0dc5c1"),
       
       ###selector to compare with other species 
@@ -817,11 +817,16 @@ server <- function(input, output) {
   #####general soil moisture profile graph with relative moisture classes
   gen.moist.graph <- reactive({
     
+    
+    
+    # browser()
     ####bring in target data
     target.data <- target.data()
     
     ###psi.summary reactive
     psi.summary <- data.summ.block()
+    
+    browser()
     
     moisture.levels <- data.frame(week_num = rep(1:52,3),
                                   condition = c(rep("wet", 52), rep("moist/mesic",52), rep("dry",52)),
@@ -831,7 +836,7 @@ server <- function(input, output) {
     ####put site in context of general soil moisture classes
     train.graph <- ggplot()+
         geom_ribbon(data = moisture.levels, aes(x = week_num, ymin = geommean_min_psi, ymax = geommean_max_psi, fill = condition), alpha = 0.4)+ #
-        geom_ribbon(data = psi.summary , aes(x = week_num, ymin = log_geomm_min, ymax = log_geomm_max), fill = "cadetblue2", alpha = 0.5)+
+        geom_ribbon(data = psi.summary , aes(x = week_num, ymin = log_geomm_min, ymax = log_geomm_max, colour = zone), fill = "cadetblue2", alpha = 0.5)+
         scale_color_manual(values = "black")+
         # ggtitle("Raw median min and max transformed")+
         # guides(fill=guide_legend(title="Moisture Level"))+
@@ -840,6 +845,7 @@ server <- function(input, output) {
         ylab("Water Potential (cm of head)")+
         theme_bw()
     
+    train.graph
     
     
   })
