@@ -335,7 +335,7 @@ server <- function(input, output) {
   ####### Vegetation formation
   veg.form <- reactive({input$veg.form})
   
-  veg.ht <- reactive({ifelse(!is.na(input$veg.ht), input$vb.ht, NA)})
+  veg.ht <- reactive({ifelse(!is.na(input$veg.ht), input$veg.ht, NA)})
   
   
   ####### calculate flow contribution area
