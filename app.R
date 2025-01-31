@@ -634,7 +634,7 @@ server <- function(input, output) {
     ######clean the prism file that the user has provided via input (this is now done with prism.cleaned() function)
     ##prism cleaning function 
     prism.cleaned <- prism.cleaning(prism.path = input$prismfile$datapath , soilprof = profile.fit, lat =target.dat2$lat[1],
-                                    long = target.data2$long[1])
+                                    long = target.dat2$long[1])
     
     ###clean the prism and match up well data if present
     # prism.cleaned <- read.csv(prism.file, skip = 10)%>%
