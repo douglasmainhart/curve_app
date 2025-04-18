@@ -464,7 +464,7 @@ server <- function(input, output) {
     
     ###streamlined soil. profile creator, need to have target data table available however
     ##target data is dataframe with all the inputs accounted for a present
-    soil.profile <- profile_creator(soil.retr = soil.retrieved.block(), input.data = target.data())
+    soil.profile <- profile_creator(soil.retr = soil.retrieved.block(), input.data = target.data(), nrcs.params = nrcs.parameters)
     
     
     
